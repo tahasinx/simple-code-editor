@@ -21,6 +21,9 @@ if (isset($_SESSION['code'])) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/mode/javascript/javascript.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.7/beautify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.7/beautify-html.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.7/beautify-css.min.js"></script>
     <style>
         .CodeMirror {
             width: 100%;
@@ -54,6 +57,7 @@ if (isset($_SESSION['code'])) {
                 <option value="default">Light</option>
                 <option value="dracula">Dark (Dracula)</option>
             </select>
+            <button type="button" id="format-btn" style="margin-left: 20px; padding: 2px 12px; font-weight: bold; color: #fff; background: #4B0082; border: none; border-radius: 3px; cursor: pointer;">Format Code</button>
         </div>
         <div style="margin-top: 15px; margin-bottom: 5px; font-weight: bold;">Editor</div>
         <div style="background: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 10px; margin-bottom: 15px; border-radius: 4px; font-size: 14px;">
@@ -68,14 +72,35 @@ if (isset($_SESSION['code'])) {
     <iframe src="result.php" style="width: 100%;height: 50vh; border: 1px solid #ccc; border-radius: 4px;"></iframe>
 
     <script>
+        // Detect browser color scheme
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var initialTheme = prefersDark ? 'dracula' : 'default';
+        // Set dropdown to match
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('theme-select').value = initialTheme;
+        });
         var editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
             lineNumbers: true,
             mode: "javascript",
-            theme: "dracula"
+            theme: initialTheme
         });
         // Theme switcher
         document.getElementById('theme-select').addEventListener('change', function() {
             editor.setOption('theme', this.value);
+        });
+        // Format Code button
+        document.getElementById('format-btn').addEventListener('click', function() {
+            var code = editor.getValue();
+            var formatted = code;
+            // Simple detection: if code contains <html> or <body>, treat as HTML; if { and ;, treat as JS; else CSS
+            if (/\<\/?(html|body|div|span|head|title|script|style)/i.test(code)) {
+                formatted = html_beautify(code);
+            } else if (/\{[^}]*;/.test(code)) {
+                formatted = js_beautify(code);
+            } else {
+                formatted = css_beautify(code);
+            }
+            editor.setValue(formatted);
         });
         // Auto-save to localStorage
         var LS_KEY = 'simple_code_editor_autosave';
@@ -86,6 +111,21 @@ if (isset($_SESSION['code'])) {
         // Save code on change
         editor.on('change', function() {
             localStorage.setItem(LS_KEY, editor.getValue());
+        });
+        // Auto-format on paste
+        editor.on('change', function(instance, changeObj) {
+            if (changeObj.origin === 'paste') {
+                var code = editor.getValue();
+                var formatted = code;
+                if (/\<\/?(html|body|div|span|head|title|script|style)/i.test(code)) {
+                    formatted = html_beautify(code);
+                } else if (/\{[^}]*;/.test(code)) {
+                    formatted = js_beautify(code);
+                } else {
+                    formatted = css_beautify(code);
+                }
+                editor.setValue(formatted);
+            }
         });
         // Clear localStorage on form submit
         document.querySelector('form').addEventListener('submit', function() {
